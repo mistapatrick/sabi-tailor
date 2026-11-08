@@ -90,9 +90,9 @@ const FEEDBACK_WHATSAPP = "2340000000000"; // <- your WhatsApp number: 234 + num
 const SCHEMA=2;
 const MEAS={
   Male:["Neck","Shoulder","Chest","Waist","Hip","Sleeve length","Round sleeve","Wrist","Top length","Thigh","Knee","Trouser length","Trouser bottom","Cap size"],
-  Female:["Bust","Circumference","Waist","Hip","Shoulder","Shoulder to under bust","Shoulder to nipple","Shoulder to waist","Sleeve length","Round sleeve","Top length","Gown length","Skirt length","Thigh","Trouser length","Head (gele)"]
+  Female:["Bust","Under bust","Waist","Hip","Shoulder","Shoulder to under bust","Shoulder to nipple","Shoulder to waist","Sleeve length","Round sleeve","Top length","Gown length","Skirt length","Thigh","Trouser length","Head (gele)"]
 };
-const MALIAS={"Under bust":"Circumference","Shoulder to bust":"Shoulder to under bust"};   // names used by earlier versions
+const MALIAS={"Under bust":"Under bust","Shoulder to bust":"Shoulder to under bust"};   // names used by earlier versions
 // Measurements that tailors take at several points. Stored as "X/X/X" in this order (blank = not measured).
 const VARIANTS={
   "Sleeve length":["Above elbow","Just before elbow","On elbow","Just below elbow","To wrist"],
@@ -462,7 +462,7 @@ function custForm(id){
   sheet(`<h3>${id?"Edit customer":"New customer"}</h3>
   <label>Gender</label><div class="seg"><button id="gM" class="${G==="Male"?"on":""}" onclick="G='Male';gSet()">👔 Male</button><button id="gF" class="${G==="Female"?"on":""}" onclick="G='Female';gSet()">👗 Female</button></div>
   <label>Name</label><input id="n" value="${esc(c.name)}" maxlength="80" placeholder="e.g. Mrs Adaeze Okafor">
-  <label>Phone (WhatsApp)</label><input id="p" type="tel" inputmode="tel" value="${esc(c.phone)}" placeholder="0803 000 0000">
+  <label>Phone (WhatsApp)</label><input id="p" type="tel" inputmode="tel" value="${esc(c.phone)}" placeholder="0905 390 3530">
   <button class="btn" onclick="saveCust('${id||""}')">Save customer</button>
   ${id&&!c.arch?`<button class="btn o" onclick="archCust('${id}',true)">🗂 Archive customer (hide, keep history)</button>`:""}`);
 }
