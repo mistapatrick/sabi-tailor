@@ -620,8 +620,10 @@ async function vput(rec){
 let LASTB=null;
 async function makeBlob(kind){
   await loadJS("vendor/write-excel-file.min.js");
-  const name=stamp()+".xlsx",blob=await writeXlsxFile(toSheets(S,new Date().toISOString())).toBlob();
-  let saved=true;try{const ts=Date.now();await vput({id:ts,ts,kind,name,buf:await blob.arrayBuffer()})}catch(e){saved=false}
+  const name=stamp()+".xlsx";
+  const buffer=await writeXlsxFile(toSheets(S,new Date().toISOString()));
+  const blob=new Blob([buffer],{type:XLSX_TYPE});
+  let saved=true;try{const ts=Date.now();await vput({id:ts,ts,kind,name,buf:buffer})}catch(e){saved=false}
   return LASTB={blob,name,saved};
 }
 async function exportBlob(blob,name,share){
