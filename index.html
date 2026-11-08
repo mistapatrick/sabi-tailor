@@ -49,7 +49,7 @@ input:focus,select:focus{outline:3px solid var(--ye);border-color:var(--in)}
 .seg button.on,.chips button.on{background:var(--in);border-color:var(--in);color:#fff}
 .chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}.chips button{padding:12px;font-size:16px}
 .m{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
-.m div{background:#f6f7fc;border-radius:10px;padding:8px 10px}.m b{font-size:20px}.m small{display:block}
+.m>div{background:#f6f7fc;border-radius:10px;padding:8px 10px}.m>div.wide{grid-column:1/-1}.vp{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid #e3e6f3;font-size:15px}.vp:first-of-type{border-top:0;margin-top:2px}.vbox{grid-column:1/-1;background:#f6f7fc;border-radius:12px;padding:10px 12px}.vbox .two{margin-top:4px}.m b{font-size:20px}.m small{display:block}
 .up{color:var(--gr);font-size:14px;font-weight:700}.dn{color:var(--rd);font-size:14px;font-weight:700}
 .warn{background:#fdf0c4;border-radius:12px;padding:12px;margin:10px 0;font-size:16px}
 #sheet{position:fixed;inset:0;background:#0007;z-index:20;display:none;align-items:flex-end}
@@ -83,16 +83,40 @@ input:focus,select:focus{outline:3px solid var(--ye);border-color:var(--in)}
 <div class="pad" id="pad"></div><button class="lk" onclick="forgotPin()">Forgot PIN?</button></div>
 <script>
 // ====== SETTINGS ======
-const FEEDBACK_WHATSAPP = "2349053903530"; // <- your WhatsApp number: 234 + number without the first 0
+const FEEDBACK_WHATSAPP = "2340000000000"; // <- your WhatsApp number: 234 + number without the first 0
 // ======================
 
 //#core-start  (pure data logic: used by backup/restore and tested separately)
 const SCHEMA=2;
 const MEAS={
   Male:["Neck","Shoulder","Chest","Waist","Hip","Sleeve length","Round sleeve","Wrist","Top length","Thigh","Knee","Trouser length","Trouser bottom","Cap size"],
-  Female:["Bust","Under bust","Waist","Hip","Shoulder","Shoulder to bust","Shoulder to waist","Sleeve length","Round sleeve","Top length","Gown length","Skirt length","Thigh","Trouser length","Head (gele)"]
+  Female:["Bust","Circumference","Waist","Hip","Shoulder","Shoulder to under bust","Shoulder to nipple","Shoulder to waist","Sleeve length","Round sleeve","Top length","Gown length","Skirt length","Thigh","Trouser length","Head (gele)"]
 };
-const CATS=[["Consumables","🧵"],["Equipment","⚙️"],["Utilities","💡"],["Investment","📈"]];
+const MALIAS={"Under bust":"Circumference","Shoulder to bust":"Shoulder to under bust"};   // names used by earlier versions
+// Measurements that tailors take at several points. Stored as "X/X/X" in this order (blank = not measured).
+const VARIANTS={
+  "Sleeve length":["Above elbow","Just before elbow","On elbow","Just below elbow","To wrist"],
+  "Round sleeve":["Upper arm","Elbow","Forearm","Sleeve end"],
+  "Shoulder":["Across back","Across front","Tip to tip"],
+  "Gown length":["Above knee","At knee","Below knee","Calf","Ankle","Floor"],
+  "Trouser length":["Above knee","At knee","Calf","Ankle","Full length"],
+  "Thigh":["Upper thigh","Mid thigh","Above knee"]
+};
+const CATS=[["Consumables","🧵"],["Equipment","⚙️"],["Utilities","💡"],["Investment","📈"],["Miscellaneous","🧾"],["Tax / Dues","🏛️"]];
+const FR={"¼":.25,"½":.5,"¾":.75},PART_RE=/^(\d{1,3}(?:[.,]\d{1,2})?)\s?([¼½¾])?$/;
+const partNum=p=>{const m=String(p??"").trim().match(PART_RE);return m?parseFloat(m[1].replace(",","."))+(m[2]?FR[m[2]]:0):NaN};
+// One value ("12", "12.5", "12½") or up to 6 values separated by "/" ("10/12/13.5"). Returns {empty}, {err} or {v}.
+function parseMeas(raw){
+  const s=String(raw??"").trim();if(s==="")return{empty:true};
+  if(s.length>60)return{err:true};
+  const parts=s.split("/").map(x=>x.trim());
+  if(parts.length>6)return{err:true};
+  while(parts.length&&parts[parts.length-1]==="")parts.pop();
+  if(!parts.length)return{empty:true};
+  for(const p of parts){if(p==="")continue;const n=partNum(p);if(!(n>0&&n<=200))return{err:true}}
+  const norm=parts.map(p=>p.replace(/\s+/g,"").replace(",","."));
+  return norm.length===1?{v:/[¼½¾]/.test(norm[0])?norm[0]:partNum(norm[0])}:{v:norm.join("/")};
+}
 const STATUS=["Sewing","Ready","Delivered"];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const iso=d=>{const t=d||new Date();return new Date(t.getTime()-t.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
@@ -108,7 +132,7 @@ function toSheets(d,now){
   const yes=b=>b?"Yes":"";
   return[
     sh("Customers",d.c.map(x=>[x.id,x.name,x.phone||"",x.gender,yes(x.arch)])),
-    sh("Measurements",d.c.flatMap(x=>x.meas.flatMap(r=>Object.entries(r.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>[x.id,x.name,r.date,k,+v])))),
+    sh("Measurements",d.c.flatMap(x=>x.meas.flatMap(r=>Object.entries(r.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>[x.id,x.name,r.date,k,v])))),
     sh("Orders",d.o.map(o=>[o.id,o.cid,nm(o.cid),o.item,o.due,o.price,o.status,pd(o),o.price-pd(o),yes(o.arch)])),
     sh("Payments",d.o.flatMap(o=>o.pays.map(p=>[o.id,p.date,p.amt,p.note||""]))),
     sh("Expenses",d.e.map(e=>[e.id,e.date,e.cat,e.note||"",e.amt])),
@@ -152,12 +176,12 @@ function parseBackup(all){
     cm[raw]=c;d.c.push(c);
   });
   (tbl(all,"Measurements")||[]).forEach(r=>{
-    const c=cm[txt(r.CustomerID,60)],k=txt(r.Measurement,40),v=num(r.Value),dt=pdate(r.Date);
+    const c=cm[txt(r.CustomerID,60)],k0=txt(r.Measurement,40),k=MALIAS[k0]||k0,pm=parseMeas(r.Value),dt=pdate(r.Date);
     if(!c)return skip("Measurements",r._row,"customer not found");
     if(!MEAS[c.gender].includes(k))return skip("Measurements",r._row,`unknown measurement “${k}”`);
-    if(!(v>0&&v<=200))return skip("Measurements",r._row,"value must be between 1 and 200");
+    if(pm.empty||pm.err)return skip("Measurements",r._row,"value not understood (use 12, 12.5 or 12/14/16)");
     if(!dt)return skip("Measurements",r._row,"date not understood");
-    let x=c.meas.find(m=>m.date===dt);if(!x)c.meas.push(x={date:dt,v:{}});x.v[k]=v;
+    let x=c.meas.find(m=>m.date===dt);if(!x)c.meas.push(x={date:dt,v:{}});x.v[k]=pm.v;
   });
   d.c.forEach(c=>c.meas.sort((a,b)=>a.date.localeCompare(b.date)));
   O.forEach(r=>{
@@ -183,7 +207,7 @@ function parseBackup(all){
     const a=num(r.Amount),dt=pdate(r.Date),raw=txt(r.ID,60);
     if(!(a>0))return skip("Expenses",r._row,"amount must be more than 0");
     if(!dt)return skip("Expenses",r._row,"date not understood");
-    const cat=(CATS.find(c=>c[0].toLowerCase()===String(r.Category).trim().toLowerCase())||CATS[0])[0];
+    const nk=s=>String(s).toLowerCase().replace(/\s+/g,""),cat=(CATS.find(c=>nk(c[0])===nk(r.Category))||CATS[0])[0];
     d.e.push({id:safeId(raw)?raw:uid(),date:dt,cat,note:txt(r.Note,200),amt:a});
   });
   return{d,sk};
@@ -199,7 +223,7 @@ let NOTICE="",PERSIST=null;
 function migrate(d){
   if(!d||typeof d!=="object"||Array.isArray(d))throw 0;
   ["c","o","e"].forEach(k=>{if(!Array.isArray(d[k]))d[k]=[]});
-  d.c.forEach(c=>{if(!Array.isArray(c.meas))c.meas=[];c.arch=!!c.arch});
+  d.c.forEach(c=>{if(!Array.isArray(c.meas))c.meas=[];c.arch=!!c.arch;c.meas.forEach(r=>{if(r&&r.v)for(const[a,b]of Object.entries(MALIAS))if(a in r.v){if(!(b in r.v))r.v[b]=r.v[a];delete r.v[a]}})});
   d.o.forEach(o=>{if(!Array.isArray(o.pays))o.pays=[];o.arch=!!o.arch;if(!STATUS.includes(o.status))o.status="Sewing"});
   d.v=SCHEMA;return d;
 }
@@ -269,18 +293,20 @@ function render(){
   const base=BASE[V.n]||V.n;
   $("#nav").innerHTML=TABS.map(t=>`<button class="${t[0]===base?"on":""}" onclick="go('${t[0]}')"><span>${t[1]}</span>${t[2]}</button>`).join("");
   $("#ttl").innerHTML=(BACK[V.n]?`<button onclick="go('${BACK[V.n]}')" aria-label="Back">←</button>`:"")+`<img src="logo.svg" alt="" width="32" height="32" style="border-radius:8px"> `+esc(v[0]||"Sabi Tailor");
-  $("#app").innerHTML=v[1];if(V.n==="bk")loadVault();
+  $("#app").innerHTML=v[1];if(V.n==="bk"){loadVault();checkTool()}
 }
 
 // ---------- views ----------
 function vHome(){
   const act=S.o.filter(o=>!o.arch&&o.status!=="Delivered").sort(byDue),m=today().slice(0,7);
   const inn=S.o.flatMap(o=>o.pays).filter(p=>p.date.startsWith(m)).reduce((a,p)=>a+p.amt,0);
-  const run=S.e.filter(e=>e.date.startsWith(m)&&(e.cat==="Consumables"||e.cat==="Utilities")).reduce((a,e)=>a+e.amt,0);
+  const ex=S.e.filter(e=>e.date.startsWith(m)),spent=ex.reduce((a,e)=>a+e.amt,0),net=inn-spent;
+  const cats=CATS.map(([n,i])=>{const l=ex.filter(e=>e.cat===n);return[n,i,l.length,l.reduce((a,e)=>a+e.amt,0)]});
   const owed=S.o.reduce((a,o)=>a+Math.max(bal(o),0),0);
-  return["",`<div class="sum"><div><small>Received this month</small><b>${naira(inn)}</b></div><div><small>Running costs (thread, bills…)</small><b>${naira(run)}</b></div>
-  <div style="border-color:var(--gr)"><small>Left after running costs</small><b>${naira(inn-run)}</b></div>
-  <div style="border-color:var(--rd)" onclick="go('owe')"><small>Customers owe you ›</small><b>${naira(owed)}</b></div></div>
+  return["",`<div class="sum"><div><small>Received this month</small><b>${naira(inn)}</b></div><div style="border-color:var(--rd)"><small>Spent this month</small><b>${naira(spent)}</b></div>
+  <div style="border-color:${net<0?"var(--rd)":"var(--gr)"}"><small>Received minus spent</small><b style="color:${net<0?"var(--rd)":"var(--gr)"}">${net<0?"−":""}${naira(Math.abs(net))}</b></div>
+  <div style="border-color:var(--ye)" onclick="go('owe')"><small>Customers owe you ›</small><b>${naira(owed)}</b></div></div>
+  <div class="card tb" onclick="go('money')"><b>Spent this month, by type</b>${cats.map(([n,i,c,t])=>`<div class="row"><span>${i} ${n}${c?` <small>(${c} entr${c>1?"ies":"y"})</small>`:""}</span><b>${naira(t)}</b></div>`).join("")}</div>
   <button class="btn y" onclick="orderForm()">＋ New order</button>
   <h2>Work to deliver</h2>`+(act.length?act.map(orderCard).join(""):`<div class="empty"><b>No work waiting</b>Tap “New order” when a customer brings cloth.</div>`)+
   `<h2>More</h2><button class="btn o" onclick="go('bk')">💾 Backup, PIN &amp; settings${ST.last?"":" · not backed up yet"}</button>
@@ -303,9 +329,7 @@ function vCD(){
   let h=(c.arch?`<div class="warn">🗂 This customer is archived. <button class="btn s o" onclick="archCust('${c.id}',false)">Bring back</button></div>`:"")+
   `<div class="row"><a class="btn s g" href="${wa(c.phone,"Hello "+c.name)}">WhatsApp</a>${c.phone?`<a class="btn s o" href="tel:${esc(c.phone)}">📞 Call</a>`:""}<button class="btn s o" onclick="custForm('${c.id}')">Edit</button></div>
   <h2>Measurements (inches) ${cur?`<small>· ${fmt(cur.date)}</small>`:""}</h2>`;
-  h+=cur?`<div class="card"><div class="m">${Object.entries(cur.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>{
-    let ch="";if(prev&&prev.v[k]!=null&&prev.v[k]!==""){const d=+(v-prev.v[k]).toFixed(2);if(d)ch=`<span class="${d>0?"up":"dn"}">${d>0?"▲ +":"▼ "}${d}</span>`}
-    return`<div><small>${esc(k)}</small><b>${esc(v)}</b> ${ch}</div>`}).join("")}</div>
+  h+=cur?`<div class="card"><div class="m">${Object.entries(cur.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>measCell(k,v,prev?prev.v[k]:null))}</div>
     ${prev?`<small>▲▼ shows change since ${fmt(prev.date)}</small>`:""}
     ${c.meas.length>1?`<button class="btn o" onclick="measHistory('${c.id}')">📜 See all ${c.meas.length} measurement records</button>`:""}</div>`
     :`<div class="empty"><b>No measurements yet</b></div>`;
@@ -352,13 +376,14 @@ function vMoney(){
   const m=today().slice(0,7),ex=S.e.filter(e=>e.date.startsWith(m)),sm=c=>ex.filter(e=>e.cat===c).reduce((a,e)=>a+e.amt,0);
   return["Money",`<button class="btn y" onclick="expForm()">＋ Add expense</button>
   <h2>Spent this month</h2><div class="chips">${CATS.map(([n,i])=>`<div class="card" style="margin:0"><small>${i} ${n}</small><br><b>${naira(sm(n))}</b></div>`).join("")}</div>
-  <small>“Left after running costs” on Home takes away only Consumables and Utilities. Equipment and Investment are one-off purchases, shown here but not deducted.</small>
+  <small>Home and Reports add up all six types. Equipment and Investment are one-off purchases, so a month with a big purchase can look like a loss.</small>
   <h2>Recent expenses</h2>`+(S.e.length?[...S.e].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(e=>`<div class="card row" onclick="expForm('${e.id}')"><div><b>${esc(e.note||e.cat)}</b><div class="mu">${(CATS.find(c=>c[0]===e.cat)||CATS[0])[1]} ${esc(e.cat)} · ${fmt(e.date)}</div></div><b>${naira(e.amt)}</b></div>`).join(""):`<div class="empty"><b>No expenses yet</b>Record thread, zips, fuel, electricity, new machine…</div>`)];
 }
 function vSet(){
   const FR=[["off","Off"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"],["half","Every 6 months"]],ago=ST.last?-dd(ST.last):0,hasPin=!!lsGet(PINK);
   return["Backup & settings",`<div class="card"><small>Last file saved to phone</small><br><b style="color:${ST.last?"var(--gr)":"var(--rd)"}">${ST.last?fmt(ST.last)+" ("+(ago===0?"today":ago+" day"+(ago>1?"s":"")+" ago")+")":"Never"}</b><br><small>Last automatic backup</small><br><b>${ST.autoTs?fmtDT(ST.autoTs):"None yet"}</b></div>
   <button class="btn" onclick="doBackup()">⬇️ Save backup to phone (Excel)</button>
+  <small id="tool-st"></small>
   ${navigator.canShare?`<button class="btn g" onclick="doBackup(true)">📤 Send backup to WhatsApp / Email / Drive</button>`:""}
   <h2>Automatic backup</h2>
   <small>Each time you open the app it checks the date and makes a backup when one is due. Copies are kept inside the app (newest 10).</small>
@@ -449,15 +474,40 @@ function saveCust(id){
   if(save()){close();toast("Saved");go("cd",id)}
 }
 function archCust(id,f){cust(id).arch=f;if(save()){close();toast(f?"Customer archived":"Customer is back");V.sa=false;go("cust")}}
+function dChip(a,b){const x=partNum(a),y=partNum(b);if(!(isFinite(x)&&isFinite(y)))return"";const d=+(x-y).toFixed(2);return d?`<span class="${d>0?"up":"dn"}">${d>0?"▲ +":"▼ "}${d}</span>`:""}
+function measCell(k,v,pv){
+  const ps=String(v).split("/"),pp=pv==null||pv===""?[]:String(pv).split("/"),lab=VARIANTS[k];
+  if(ps.length===1)return`<div><small>${esc(k)}</small><b>${esc(v)}</b> ${pp.length===1?dChip(ps[0],pp[0]):""}</div>`;
+  if(lab)return`<div class="wide"><small>${esc(k)}</small>${ps.map((p,i)=>p===""?"":`<div class="vp"><span>${esc(lab[i]||"Length "+(i+1))}</span><span><b>${esc(p)}</b> ${pp.length>1?dChip(p,pp[i]):""}</span></div>`).join("")}</div>`;
+  const ds=ps.map((p,i)=>{const x=partNum(p),y=partNum(pp[i]);if(!(isFinite(x)&&isFinite(y)))return"–";const d=+(x-y).toFixed(2);return d>0?"+"+d:String(d)}).join(" / ");
+  return`<div><small>${esc(k)}</small><b>${esc(String(v))}</b>${pp.length>1?` <small>change: ${esc(ds)}</small>`:""}</div>`;
+}
+function measField(k,i,val){
+  const lab=VARIANTS[k],s=val==null?"":String(val),ps=s.split("/");
+  if(!lab)return`<div><label>${esc(k)}</label><input id="m${i}" type="text" inputmode="decimal" maxlength="60" value="${esc(s)}"></div>`;
+  const useV=ps.length>1&&ps.length<=lab.length;
+  return`<div class="vbox"><label>${esc(k)}</label>
+  <div id="mw${i}" ${useV?"hidden":""}><input id="m${i}" type="text" inputmode="decimal" maxlength="60" value="${useV?"":esc(s)}">
+  <button type="button" class="btn s o" style="margin-top:8px" onclick="varOpen(${i},true)">＋ Different lengths (X/X/X)</button></div>
+  <div id="mv${i}" ${useV?"":"hidden"}><small>Fill in what you measured and leave the rest blank.</small>
+  <div class="two">${lab.map((l,j)=>`<div><label style="font-size:14px">${esc(l)}</label><input type="text" inputmode="decimal" maxlength="8" value="${esc(useV?ps[j]??"":"")}"></div>`).join("")}</div>
+  <button type="button" class="btn s o" style="margin-top:8px" onclick="varOpen(${i},false)">Use one value instead</button></div></div>`;
+}
+function varOpen(i,on){$("#mw"+i).hidden=on;$("#mv"+i).hidden=!on}
 function measForm(id){
   const c=cust(id),last=c.meas.length?c.meas[c.meas.length-1].v:{};
-  sheet(`<h3>${esc(c.name)} · Measurements</h3><small>In inches. Leave blank what you don’t need. Old records are kept.</small>
-  <div class="two">${MEAS[c.gender].map((k,i)=>`<div><label>${k}</label><input id="m${i}" type="number" step="0.25" min="0" max="200" inputmode="decimal" value="${last[k]??""}"></div>`).join("")}</div>
+  sheet(`<h3>${esc(c.name)} · Measurements</h3><small>In inches. Leave blank what you don’t need. Old records are kept. For sleeves, gowns, trousers and similar, tap “Different lengths” to record each point.</small>
+  <div class="two">${MEAS[c.gender].map((k,i)=>measField(k,i,last[k])).join("")}</div>
   <button class="btn" onclick="saveMeas('${id}')">Save measurements</button>`);
 }
 function saveMeas(id){
   const c=cust(id),v={};
-  for(let i=0;i<MEAS[c.gender].length;i++){const k=MEAS[c.gender][i],x=$("#m"+i).value;if(x==="")continue;if(!(+x>0&&+x<=200))return toast("Please check “"+k+"”",2500,true);v[k]=+x}
+  for(let i=0;i<MEAS[c.gender].length;i++){
+    const k=MEAS[c.gender][i],vb=$("#mv"+i),raw=vb&&!vb.hidden?[...vb.querySelectorAll("input")].map(x=>x.value.trim()).join("/"):$("#m"+i).value,r=parseMeas(raw);
+    if(r.empty)continue;
+    if(r.err)return toast("Please check “"+k+"”. Use numbers like 12 or 12.5, or 12/14/16 for different lengths.",4000,true);
+    v[k]=r.v;
+  }
   if(!Object.keys(v).length)return toast("Type at least one measurement");
   const last=c.meas[c.meas.length-1];
   if(last&&last.date===today())last.v=v;else c.meas.push({date:today(),v});
@@ -465,7 +515,7 @@ function saveMeas(id){
 }
 function measHistory(id){
   const c=cust(id);
-  sheet(`<h3>Measurement records</h3>`+[...c.meas].reverse().map(r=>`<div class="card"><b>${fmt(r.date)}</b><div class="m" style="margin-top:6px">${Object.entries(r.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>`<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join("")}</div></div>`).join("")+`<button class="btn o" onclick="close()">Close</button>`);
+  sheet(`<h3>Measurement records</h3>`+[...c.meas].reverse().map(r=>`<div class="card"><b>${fmt(r.date)}</b><div class="m" style="margin-top:6px">${Object.entries(r.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>measCell(k,v,null)).join("")}</div></div>`).join("")+`<button class="btn o" onclick="close()">Close</button>`);
 }
 
 // ---------- orders & payments ----------
@@ -553,7 +603,7 @@ function dl(blob,name){const a=document.createElement("a");a.href=URL.createObje
 // ---------- Excel backup / restore (libraries load only when needed) ----------
 const _L={};
 const loadJS=src=>_L[src]||(_L[src]=new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>{delete _L[src];no(new Error("load"))};document.head.appendChild(s)}));
-const LIBFAIL="Could not load the backup tool. Check your network and try again.";
+const libMsg=()=>navigator.onLine===false?"You are offline and the backup tool is not saved on this phone yet. Connect to the internet once and try again.":"The backup tool file could not be loaded. Please tell the app owner: the website may be missing its “vendor” folder.";
 function stamp(){const d=new Date(),p=n=>String(n).padStart(2,"0");return`sabitailor_${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`}
 const XLSX_TYPE="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const fmtDT=t=>new Date(t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
@@ -580,11 +630,18 @@ async function exportBlob(blob,name,share){
   dl(blob,name);done();
 }
 async function doBackup(share){
-  let b;try{b=await makeBlob("Manual")}catch(e){return toast(e&&e.message==="load"?LIBFAIL:"Backup failed. Please try again.",3500,true)}
+  let b;try{b=await makeBlob("Manual")}catch(e){return toast(e&&e.message==="load"?libMsg():"Backup failed. Please try again.",5000,true)}
   await exportBlob(b.blob,b.name,share);
   if(V.n==="bk")loadVault();
 }
 const exportLast=share=>LASTB&&exportBlob(LASTB.blob,LASTB.name,share);
+async function checkTool(){
+  const el=$("#tool-st");if(!el)return;let ok=null;
+  try{ok=(await fetch("vendor/write-excel-file.min.js",{method:"HEAD",cache:"no-store"})).ok}catch(e){try{ok=!!(await caches.match("vendor/write-excel-file.min.js"))||null}catch(x){}}
+  const e2=$("#tool-st");if(!e2)return;
+  e2.textContent=ok===true?"✅ Backup tool is installed on this website.":ok===false?"⚠️ The backup tool file is missing from this website (the vendor folder). Backup will not work until it is uploaded.":"The backup tool could not be checked (you may be offline).";
+  e2.style.color=ok===true?"var(--gr)":ok===false?"var(--rd)":"var(--mu)";
+}
 async function loadVault(){
   try{
     const l=await vall(),el=$("#vault");if(!el)return;
@@ -611,7 +668,7 @@ function nextTxt(){
 async function runAuto(){
   let b;
   try{b=await makeBlob("Auto");ST.autoTs=new Date().toISOString();saveST()}
-  catch(e){return toast("Automatic backup could not run. Connect to the internet once, then reopen the app.",5000,true)}
+  catch(e){if(ST.autoFailDay!==today()){ST.autoFailDay=today();saveST();toast(e&&e.message==="load"?libMsg():"Automatic backup could not run.",6000,true)}return}
   if(!b.saved||phoneCopyDue())sheet(`<h3>✅ Backup made</h3><p>${b.saved?`Your ${FN[ST.f]} backup was made automatically and kept inside the app. Save a copy to your phone’s files too. It is safer.`:"Your backup is ready, but this phone would not keep a copy inside the app. Please save it to your phone now."}</p>
     <button class="btn" onclick="exportLast()">⬇️ Save a copy to my phone</button>${navigator.canShare?`<button class="btn g" onclick="exportLast(true)">📤 Send to WhatsApp / Email</button>`:""}
     <button class="btn o" onclick="close()">Later</button>`);
@@ -625,7 +682,7 @@ async function importXlsx(file){
   restoreFrom(file);
 }
 async function restoreFrom(src){
-  try{await loadJS("vendor/read-excel-file.min.js")}catch(e){return toast(LIBFAIL,3500,true)}
+  try{await loadJS("vendor/read-excel-file.min.js")}catch(e){return toast(libMsg(),5000,true)}
   try{
     const r=parseBackup(await readXlsxFile(src));PENDING=r.d;
     const sk=r.sk;
