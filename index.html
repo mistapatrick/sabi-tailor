@@ -49,7 +49,7 @@ input:focus,select:focus{outline:3px solid var(--ye);border-color:var(--in)}
 .seg button.on,.chips button.on{background:var(--in);border-color:var(--in);color:#fff}
 .chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}.chips button{padding:12px;font-size:16px}
 .m{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
-.m>div{background:#f6f7fc;border-radius:10px;padding:8px 10px}.m>div.wide{grid-column:1/-1}.vp{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid #e3e6f3;font-size:15px}.vp:first-of-type{border-top:0;margin-top:2px}.vbox{grid-column:1/-1;background:#f6f7fc;border-radius:12px;padding:10px 12px}.vbox .two{margin-top:4px}.m b{font-size:20px}.m small{display:block}
+.m>div{background:#f6f7fc;border-radius:10px;padding:8px 10px}.m b{font-size:20px}.m small{display:block}
 .up{color:var(--gr);font-size:14px;font-weight:700}.dn{color:var(--rd);font-size:14px;font-weight:700}
 .warn{background:#fdf0c4;border-radius:12px;padding:12px;margin:10px 0;font-size:16px}
 #sheet{position:fixed;inset:0;background:#0007;z-index:20;display:none;align-items:flex-end}
@@ -83,39 +83,25 @@ input:focus,select:focus{outline:3px solid var(--ye);border-color:var(--in)}
 <div class="pad" id="pad"></div><button class="lk" onclick="forgotPin()">Forgot PIN?</button></div>
 <script>
 // ====== SETTINGS ======
-const FEEDBACK_WHATSAPP = "2340000000000"; // <- your WhatsApp number: 234 + number without the first 0
+const FEEDBACK_WHATSAPP = "2349053903530"; // 234 + number without the first 0
+const FEEDBACK_EMAIL = "viborg.outsourcing@gmail.com";
 // ======================
 
 //#core-start  (pure data logic: used by backup/restore and tested separately)
 const SCHEMA=2;
 const MEAS={
   Male:["Neck","Shoulder","Chest","Waist","Hip","Sleeve length","Round sleeve","Wrist","Top length","Thigh","Knee","Trouser length","Trouser bottom","Cap size"],
-  Female:["Bust","Under bust","Waist","Hip","Shoulder","Shoulder to under bust","Shoulder to nipple","Shoulder to waist","Sleeve length","Round sleeve","Top length","Gown length","Skirt length","Thigh","Trouser length","Head (gele)"]
+  Female:["Bust","Under bust circumference","Waist","Hip","Shoulder","Shoulder to under bust","Shoulder to nipple","Shoulder to waist","Sleeve length","Round sleeve","Top length","Gown length","Skirt length","Thigh","Trouser length","Head (gele)"]
 };
-const MALIAS={"Under bust":"Under bust","Shoulder to bust":"Shoulder to under bust"};   // names used by earlier versions
-// Measurements that tailors take at several points. Stored as "X/X/X" in this order (blank = not measured).
-const VARIANTS={
-  "Sleeve length":["Above elbow","Just before elbow","On elbow","Just below elbow","To wrist"],
-  "Round sleeve":["Upper arm","Elbow","Forearm","Sleeve end"],
-  "Shoulder":["Across back","Across front","Tip to tip"],
-  "Gown length":["Above knee","At knee","Below knee","Calf","Ankle","Floor"],
-  "Trouser length":["Above knee","At knee","Calf","Ankle","Full length"],
-  "Thigh":["Upper thigh","Mid thigh","Above knee"]
-};
-const CATS=[["Consumables","🧵"],["Equipment","⚙️"],["Utilities","💡"],["Investment","📈"],["Miscellaneous","🧾"],["Tax / Dues","🏛️"]];
-const FR={"¼":.25,"½":.5,"¾":.75},PART_RE=/^(\d{1,3}(?:[.,]\d{1,2})?)\s?([¼½¾])?$/;
-const partNum=p=>{const m=String(p??"").trim().match(PART_RE);return m?parseFloat(m[1].replace(",","."))+(m[2]?FR[m[2]]:0):NaN};
-// One value ("12", "12.5", "12½") or up to 6 values separated by "/" ("10/12/13.5"). Returns {empty}, {err} or {v}.
+const MALIAS={"Circumference":"Under bust","Shoulder to bust":"Shoulder to under bust"};   // names used by earlier versions
+const CATS=[["Consumables","🧵"],["Equipment","⚙️"],["Utilities","💡"],["Investment","📈"],["Miscellaneous","🧾"],["Tax/Dues","🏛️"]];
+// A measurement is free text: figures plus signs such as / , ? * ( ) . + - (e.g. "12", "12.5", "10/12/14", "12?"). Up to 100 characters.
+const plainNum=v=>/^\d{1,3}(\.\d{1,2})?$/.test(String(v??"").trim())?parseFloat(v):NaN;
 function parseMeas(raw){
-  const s=String(raw??"").trim();if(s==="")return{empty:true};
-  if(s.length>60)return{err:true};
-  const parts=s.split("/").map(x=>x.trim());
-  if(parts.length>6)return{err:true};
-  while(parts.length&&parts[parts.length-1]==="")parts.pop();
-  if(!parts.length)return{empty:true};
-  for(const p of parts){if(p==="")continue;const n=partNum(p);if(!(n>0&&n<=200))return{err:true}}
-  const norm=parts.map(p=>p.replace(/\s+/g,"").replace(",","."));
-  return norm.length===1?{v:/[¼½¾]/.test(norm[0])?norm[0]:partNum(norm[0])}:{v:norm.join("/")};
+  const s=String(raw??"").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();
+  if(s==="")return{empty:true};
+  if(s.length>100)return{err:true};
+  return{v:isFinite(plainNum(s))?plainNum(s):s};
 }
 const STATUS=["Sewing","Ready","Delivered"];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -179,7 +165,7 @@ function parseBackup(all){
     const c=cm[txt(r.CustomerID,60)],k0=txt(r.Measurement,40),k=MALIAS[k0]||k0,pm=parseMeas(r.Value),dt=pdate(r.Date);
     if(!c)return skip("Measurements",r._row,"customer not found");
     if(!MEAS[c.gender].includes(k))return skip("Measurements",r._row,`unknown measurement “${k}”`);
-    if(pm.empty||pm.err)return skip("Measurements",r._row,"value not understood (use 12, 12.5 or 12/14/16)");
+    if(pm.empty||pm.err)return skip("Measurements",r._row,"value is empty or longer than 100 characters");
     if(!dt)return skip("Measurements",r._row,"date not understood");
     let x=c.meas.find(m=>m.date===dt);if(!x)c.meas.push(x={date:dt,v:{}});x.v[k]=pm.v;
   });
@@ -310,7 +296,8 @@ function vHome(){
   <button class="btn y" onclick="orderForm()">＋ New order</button>
   <h2>Work to deliver</h2>`+(act.length?act.map(orderCard).join(""):`<div class="empty"><b>No work waiting</b>Tap “New order” when a customer brings cloth.</div>`)+
   `<h2>More</h2><button class="btn o" onclick="go('bk')">💾 Backup, PIN &amp; settings${ST.last?"":" · not backed up yet"}</button>
-  <a class="btn o" href="https://wa.me/${FEEDBACK_WHATSAPP}?text=${encodeURIComponent("Sabi Tailor feedback: ")}">💬 Send feedback on WhatsApp</a>`];
+  <a class="btn o" href="https://wa.me/${FEEDBACK_WHATSAPP}?text=${encodeURIComponent("Sabi Tailor feedback: ")}">💬 Send feedback on WhatsApp</a>
+  <a class="btn o" href="mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent("Sabi Tailor feedback")}&body=${encodeURIComponent("Hello, my feedback on Sabi Tailor:\n\n")}">✉️ Send feedback by email</a>`];
 }
 function custList(){
   const q=V.q.toLowerCase(),l=S.c.filter(c=>!!c.arch===V.sa&&c.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
@@ -329,7 +316,7 @@ function vCD(){
   let h=(c.arch?`<div class="warn">🗂 This customer is archived. <button class="btn s o" onclick="archCust('${c.id}',false)">Bring back</button></div>`:"")+
   `<div class="row"><a class="btn s g" href="${wa(c.phone,"Hello "+c.name)}">WhatsApp</a>${c.phone?`<a class="btn s o" href="tel:${esc(c.phone)}">📞 Call</a>`:""}<button class="btn s o" onclick="custForm('${c.id}')">Edit</button></div>
   <h2>Measurements (inches) ${cur?`<small>· ${fmt(cur.date)}</small>`:""}</h2>`;
-  h+=cur?`<div class="card"><div class="m">${Object.entries(cur.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>measCell(k,v,prev?prev.v[k]:null))}</div>
+  h+=cur?`<div class="card"><div class="m">${Object.entries(cur.v).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>measCell(k,v,prev&&prev.v[k]!=null&&prev.v[k]!==""?prev.v[k]:null)).join("")}</div>
     ${prev?`<small>▲▼ shows change since ${fmt(prev.date)}</small>`:""}
     ${c.meas.length>1?`<button class="btn o" onclick="measHistory('${c.id}')">📜 See all ${c.meas.length} measurement records</button>`:""}</div>`
     :`<div class="empty"><b>No measurements yet</b></div>`;
@@ -452,7 +439,7 @@ function vRep(){
   <div class="card tb"><b>Each ${unit}</b>${B.map(b=>{const n=b.earn-b.spent;return`<div class="row"><span>${esc(b.l)}</span><span class="mu">${naira(b.earn)} − ${naira(b.spent)}</span><b style="color:${n<0?"var(--rd)":"var(--gr)"}">${n<0?"−":"+"}${naira(Math.abs(n))}</b></div>`}).join("")}</div>
   <div class="card"><b>Where the money went</b>${cat.map(([n,i,v])=>`<div style="margin-top:10px"><div class="row"><span>${i} ${n}</span><b>${naira(v)}</b></div><div class="bar"><i style="width:${Sp?Math.round(v/Sp*100):0}%;background:var(--in)"></i></div></div>`).join("")}</div>`
   :`<div class="empty"><b>Nothing to compare yet</b>Record payments on orders and add expenses, and your trends will appear here.</div>`)+
-  `<small>“Received” is money actually paid to you (payments on orders), not the agreed prices. “Spent” includes all four expense types.</small>`];
+  `<small>“Received” is money actually paid to you (payments on orders), not the agreed prices. “Spent” includes all six expense types.</small>`];
 }
 
 // ---------- customers & measurements ----------
@@ -474,38 +461,20 @@ function saveCust(id){
   if(save()){close();toast("Saved");go("cd",id)}
 }
 function archCust(id,f){cust(id).arch=f;if(save()){close();toast(f?"Customer archived":"Customer is back");V.sa=false;go("cust")}}
-function dChip(a,b){const x=partNum(a),y=partNum(b);if(!(isFinite(x)&&isFinite(y)))return"";const d=+(x-y).toFixed(2);return d?`<span class="${d>0?"up":"dn"}">${d>0?"▲ +":"▼ "}${d}</span>`:""}
-function measCell(k,v,pv){
-  const ps=String(v).split("/"),pp=pv==null||pv===""?[]:String(pv).split("/"),lab=VARIANTS[k];
-  if(ps.length===1)return`<div><small>${esc(k)}</small><b>${esc(v)}</b> ${pp.length===1?dChip(ps[0],pp[0]):""}</div>`;
-  if(lab)return`<div class="wide"><small>${esc(k)}</small>${ps.map((p,i)=>p===""?"":`<div class="vp"><span>${esc(lab[i]||"Length "+(i+1))}</span><span><b>${esc(p)}</b> ${pp.length>1?dChip(p,pp[i]):""}</span></div>`).join("")}</div>`;
-  const ds=ps.map((p,i)=>{const x=partNum(p),y=partNum(pp[i]);if(!(isFinite(x)&&isFinite(y)))return"–";const d=+(x-y).toFixed(2);return d>0?"+"+d:String(d)}).join(" / ");
-  return`<div><small>${esc(k)}</small><b>${esc(String(v))}</b>${pp.length>1?` <small>change: ${esc(ds)}</small>`:""}</div>`;
-}
-function measField(k,i,val){
-  const lab=VARIANTS[k],s=val==null?"":String(val),ps=s.split("/");
-  if(!lab)return`<div><label>${esc(k)}</label><input id="m${i}" type="text" inputmode="decimal" maxlength="60" value="${esc(s)}"></div>`;
-  const useV=ps.length>1&&ps.length<=lab.length;
-  return`<div class="vbox"><label>${esc(k)}</label>
-  <div id="mw${i}" ${useV?"hidden":""}><input id="m${i}" type="text" inputmode="decimal" maxlength="60" value="${useV?"":esc(s)}">
-  <button type="button" class="btn s o" style="margin-top:8px" onclick="varOpen(${i},true)">＋ Different lengths (X/X/X)</button></div>
-  <div id="mv${i}" ${useV?"":"hidden"}><small>Fill in what you measured and leave the rest blank.</small>
-  <div class="two">${lab.map((l,j)=>`<div><label style="font-size:14px">${esc(l)}</label><input type="text" inputmode="decimal" maxlength="8" value="${esc(useV?ps[j]??"":"")}"></div>`).join("")}</div>
-  <button type="button" class="btn s o" style="margin-top:8px" onclick="varOpen(${i},false)">Use one value instead</button></div></div>`;
-}
-function varOpen(i,on){$("#mw"+i).hidden=on;$("#mv"+i).hidden=!on}
+function dChip(a,b){const x=plainNum(a),y=plainNum(b);if(!(isFinite(x)&&isFinite(y)))return"";const d=+(x-y).toFixed(2);return d?`<span class="${d>0?"up":"dn"}">${d>0?"▲ +":"▼ "}${d}</span>`:""}
+function measCell(k,v,pv){return`<div><small>${esc(k)}</small><b>${esc(v)}</b> ${pv==null?"":dChip(v,pv)}</div>`}
 function measForm(id){
   const c=cust(id),last=c.meas.length?c.meas[c.meas.length-1].v:{};
-  sheet(`<h3>${esc(c.name)} · Measurements</h3><small>In inches. Leave blank what you don’t need. Old records are kept. For sleeves, gowns, trousers and similar, tap “Different lengths” to record each point.</small>
-  <div class="two">${MEAS[c.gender].map((k,i)=>measField(k,i,last[k])).join("")}</div>
+  sheet(`<h3>${esc(c.name)} · Measurements</h3><small>In inches. Leave blank what you don’t need. You can type figures and signs like / , ? * ( ) for example 12/14/16. Old records are kept.</small>
+  <div class="two">${MEAS[c.gender].map((k,i)=>`<div><label>${esc(k)}</label><input id="m${i}" type="text" maxlength="100" autocomplete="off" value="${esc(last[k]??"")}"></div>`).join("")}</div>
   <button class="btn" onclick="saveMeas('${id}')">Save measurements</button>`);
 }
 function saveMeas(id){
   const c=cust(id),v={};
   for(let i=0;i<MEAS[c.gender].length;i++){
-    const k=MEAS[c.gender][i],vb=$("#mv"+i),raw=vb&&!vb.hidden?[...vb.querySelectorAll("input")].map(x=>x.value.trim()).join("/"):$("#m"+i).value,r=parseMeas(raw);
+    const k=MEAS[c.gender][i],r=parseMeas($("#m"+i).value);
     if(r.empty)continue;
-    if(r.err)return toast("Please check “"+k+"”. Use numbers like 12 or 12.5, or 12/14/16 for different lengths.",4000,true);
+    if(r.err)return toast("“"+k+"” is too long (maximum 100 characters).",3500,true);
     v[k]=r.v;
   }
   if(!Object.keys(v).length)return toast("Type at least one measurement");
@@ -621,9 +590,9 @@ let LASTB=null;
 async function makeBlob(kind){
   await loadJS("vendor/write-excel-file.min.js");
   const name=stamp()+".xlsx";
-  const buffer=await writeXlsxFile(toSheets(S,new Date().toISOString()));
-  const blob=new Blob([buffer],{type:XLSX_TYPE});
-  let saved=true;try{const ts=Date.now();await vput({id:ts,ts,kind,name,buf:buffer})}catch(e){saved=false}
+  const blob=await writeXlsxFile(toSheets(S,new Date().toISOString())).toBlob();   // .toBlob() is required: without it the result is not a file
+  if(!blob||blob.size<1000)throw new Error("empty");
+  let saved=true;try{const ts=Date.now();await vput({id:ts,ts,kind,name,buf:await blob.arrayBuffer()})}catch(e){saved=false}
   return LASTB={blob,name,saved};
 }
 async function exportBlob(blob,name,share){
@@ -632,7 +601,7 @@ async function exportBlob(blob,name,share){
   dl(blob,name);done();
 }
 async function doBackup(share){
-  let b;try{b=await makeBlob("Manual")}catch(e){return toast(e&&e.message==="load"?libMsg():"Backup failed. Please try again.",5000,true)}
+  let b;try{b=await makeBlob("Manual")}catch(e){return toast(e&&e.message==="load"?libMsg():"The backup file could not be made. Please try again.",5000,true)}
   await exportBlob(b.blob,b.name,share);
   if(V.n==="bk")loadVault();
 }
